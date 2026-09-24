@@ -1,22 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from "next/server";
 
-export const config = {
-  matcher: "/:path*"
-}
-
-export default function middleware(req) {
-  const basicAuth = req.headers.get('authorization')
-  const url = req.nextUrl
-
-  if (basicAuth) {
-    const authValue = basicAuth.split(' ')[1]
-    const [user, pwd] = atob(authValue).split(':')
-
-    if (user === process.env.AUTH_USER && pwd === process.env.AUTH_PASS) {
-      return NextResponse.next()
-    }
+export function middleware(req) {
+  const auth = req.headers.get("authorization");
+  if (auth && auth.startsWith("Basic ")) {
+    try {
+      const = atob(auth.slice(6)).split(":");
+      if (user === process.env.AUTH_USER && pwd === process.env.AUTH_PASS) {
+        return NextResponse.next();
+      }
+    } catch (e)
   }
-  url.pathname = '/api/auth'
-
-  return NextResponse.rewrite(url)
+  return new Response("Auth required", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="GrokVoice"' },
+  });
 }
+
+export const config = { matcher: "/:path*" };
