@@ -21,7 +21,7 @@ export default function Home() {
         const ORB = document.getElementById('orb');
         const BTN = document.getElementById('btn');
         const STATUS = document.getElementById('status');
-        let ws, audioCtx, micStream, processor;
+        let ws, audioCtx, micStream, processor, nextPlayTime = 0;
 
         document.getElementById('unlock').onclick = async () => {
           const pw = document.getElementById('pw').value;
@@ -34,9 +34,10 @@ export default function Home() {
           STATUS.textContent = 'Connecting...';
           const r = await fetch('/api/session', { method: 'POST' });
           const data = await r.json();
-          const token = data.value || (data.client_secret && data.client_secret.value);
+          if (data.error) { STATUS.textContent = data.error; return; }
+          const token = data.client_secret && data.client_secret.value;
           if (!token) { STATUS.textContent = 'No token'; return; }
-          ws = new WebSocket('wss://api.x.ai/v1/realtime');
+          ws = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', );
           ws.onopen = () => {
             ws.send(JSON.stringify({ type: 'session.update', session: {
               voice: 'Eve',
@@ -87,7 +88,10 @@ export default function Home() {
           const src = audioCtx.createBufferSource();
           src.buffer = buf;
           src.connect(audioCtx.destination);
-          src.start();
+          const now = audioCtx.currentTime;
+          if (nextPlayTime < now) nextPlayTime = now;
+          src.start(nextPlayTime);
+          nextPlayTime += buf.duration;
         }
 
         function stopMic() {
