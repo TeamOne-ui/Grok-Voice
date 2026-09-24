@@ -21,14 +21,7 @@ export default function Home() {
         const ORB = document.getElementById('orb');
         const BTN = document.getElementById('btn');
         const STATUS = document.getElementById('status');
-        let ws, audioCtx, micStream, processor, nextPlayTime = 0;
-
-        document.getElementById('unlock').onclick = async () => {
-          const pw = document.getElementById('pw').value;
-          const r = await fetch('/api/auth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) });
-          if (r.ok) { GATE.style.display = 'none'; APP.style.display = 'flex'; }
-          else { ERR.textContent = 'Wrong password'; }
-        };
+        let ws, audioCtx, micStream, processor, nextPlayTime = 0, earlyAudio = [];
 
         function toBase64(bytes) {
           let bin = '';
@@ -39,25 +32,50 @@ export default function Home() {
           return btoa(bin);
         }
 
+        document.getElementById('unlock').onclick = async () => {
+          const pw = document.getElementById('pw').value;
+          const r = await fetch('/api/auth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) });
+          if (r.ok) { GATE.style.display = 'none'; APP.style.display = 'flex'; }
+          else { ERR.textContent = 'Wrong password'; }
+        };
+
         async function start() {
           STATUS.textContent = 'Connecting...';
+          try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          } catch (e) {
+            STATUS.textContent = 'Mic denied';
+            return;
+          }
           const r = await fetch('/api/session', { method: 'POST' });
           const data = await r.json();
           if (data.error) { STATUS.textContent = data.error; return; }
           const token = data.client_secret && data.client_secret.value;
           if (!token) { STATUS.textContent = 'No token'; return; }
+
+          audioCtx = new AudioContext({ sampleRate: 24000 });
+          if (audioCtx.state === 'suspended') await audioCtx.resume();
+
           ws = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', ['xai-client-secret.' + token]);
+
           ws.onopen = () => {
             ws.send(JSON.stringify({ type: 'session.update', session: {
-              voice: 'Eve',
+              voice: 'eve',
               instructions: 'You are a helpful voice assistant. Keep responses short and conversational.',
               turn_detection: { type: 'server_vad' },
-              audio: { input: { format: { type: 'audio/pcm', rate: 24000 } }, output: { format: { type: 'audio/pcm', rate: 24000 } } }
+              audio: {
+                input:  { format: { type: 'audio/pcm', rate: 24000 } },
+                output: { format: { type: 'audio/pcm', rate: 24000 } }
+              }
             }}));
-            startMic();
+            if (earlyAudio.length) {
+              earlyAudio.forEach(a => ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: a })));
+              earlyAudio = [];
+            }
             STATUS.textContent = 'Listening';
             BTN.textContent = 'Stop';
           };
+
           ws.onmessage = (e) => {
             const msg = JSON.parse(e.data);
             if (msg.type === 'ping') {
@@ -68,23 +86,27 @@ export default function Home() {
             if (msg.type === 'error') STATUS.textContent = 'Error: ' + (msg.message || JSON.stringify(msg));
           };
           ws.onerror = () => STATUS.textContent = 'Connection error';
-          ws.onclose = () => { STATUS.textContent = 'Disconnected'; BTN.textContent = 'Start'; stopMic(); };
-        }
+          ws.onclose = (ev) => {
+            STATUS.textContent = 'Disconnected' + (ev.code ? ' (' + ev.code + ')' : '');
+            BTN.textContent = 'Start';
+            stopMic();
+          };
 
-        async function startMic() {
-          audioCtx = new AudioContext({ sampleRate: 24000 });
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
           const src = audioCtx.createMediaStreamSource(micStream);
           processor = audioCtx.createScriptProcessor(4096, 1, 1);
           processor.onaudioprocess = (e) => {
-            if (!ws || ws.readyState !== 1) return;
             const input = e.inputBuffer.getChannelData(0);
             const pcm = new Int16Array(input.length);
             for (let i = 0; i < input.length; i++) {
               const s = Math.max(-1, Math.min(1, input[i]));
               pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
             }
-            ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: toBase64(new Uint8Array(pcm.buffer)) }));
+            const b64 = toBase64(new Uint8Array(pcm.buffer));
+            if (ws && ws.readyState === 1) {
+              ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: b64 }));
+            } else {
+              earlyAudio.push(b64);
+            }
           };
           src.connect(processor);
           processor.connect(audioCtx.destination);
@@ -112,6 +134,7 @@ export default function Home() {
           if (processor) processor.disconnect();
           if (micStream) micStream.getTracks().forEach(t => t.stop());
           if (audioCtx) audioCtx.close();
+          processor = null; micStream = null; audioCtx = null;
         }
 
         BTN.onclick = () => {
