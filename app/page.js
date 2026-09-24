@@ -30,6 +30,15 @@ export default function Home() {
           else { ERR.textContent = 'Wrong password'; }
         };
 
+        function toBase64(bytes) {
+          let bin = '';
+          const chunk = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunk) {
+            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+          }
+          return btoa(bin);
+        }
+
         async function start() {
           STATUS.textContent = 'Connecting...';
           const r = await fetch('/api/session', { method: 'POST' });
@@ -37,7 +46,7 @@ export default function Home() {
           if (data.error) { STATUS.textContent = data.error; return; }
           const token = data.client_secret && data.client_secret.value;
           if (!token) { STATUS.textContent = 'No token'; return; }
-          ws = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', ['xai-client-secret.' + token]);
+          ws = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', );
           ws.onopen = () => {
             ws.send(JSON.stringify({ type: 'session.update', session: {
               voice: 'Eve',
@@ -52,6 +61,7 @@ export default function Home() {
           ws.onmessage = (e) => {
             const msg = JSON.parse(e.data);
             if (msg.type === 'response.output_audio.delta' && msg.delta) playChunk(msg.delta);
+            if (msg.type === 'error') STATUS.textContent = 'Error: ' + (msg.message || JSON.stringify(msg));
           };
           ws.onerror = () => STATUS.textContent = 'Connection error';
           ws.onclose = () => { STATUS.textContent = 'Disconnected'; BTN.textContent = 'Start'; stopMic(); };
@@ -66,11 +76,11 @@ export default function Home() {
             if (!ws || ws.readyState !== 1) return;
             const input = e.inputBuffer.getChannelData(0);
             const pcm = new Int16Array(input.length);
-            for (let i = 0; i < input.length; i++) pcm = Math.max(-1, Math.min(1, input )) * 32767;
-            const bytes = new Uint8Array(pcm.buffer);
-            let bin = '';
-            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes );
-            ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: btoa(bin) }));
+            for (let i = 0; i < input.length; i++) {
+              const s = Math.max(-1, Math.min(1, input ));
+              pcm = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: toBase64(new Uint8Array(pcm.buffer)) }));
           };
           src.connect(processor);
           processor.connect(audioCtx.destination);
@@ -84,7 +94,7 @@ export default function Home() {
           const pcm = new Int16Array(bytes.buffer);
           const buf = audioCtx.createBuffer(1, pcm.length, 24000);
           const ch = buf.getChannelData(0);
-          for (let i = 0; i < pcm.length; i++) ch = pcm / 32767;
+          for (let i = 0; i < pcm.length; i++) ch = pcm / 32768;
           const src = audioCtx.createBufferSource();
           src.buffer = buf;
           src.connect(audioCtx.destination);
