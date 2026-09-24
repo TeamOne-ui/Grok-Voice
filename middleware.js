@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export const config = {
-  matcher: ['/', '/index'],
+  matcher: "/:path*"
 }
 
-export default function middleware(req: NextRequest) {
+export default function middleware(req) {
   const basicAuth = req.headers.get('authorization')
   const url = req.nextUrl
 
