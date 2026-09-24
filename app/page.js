@@ -46,7 +46,7 @@ export default function Home() {
           if (data.error) { STATUS.textContent = data.error; return; }
           const token = data.client_secret && data.client_secret.value;
           if (!token) { STATUS.textContent = 'No token'; return; }
-          ws = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', );
+          ws = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', ['xai-client-secret.' + token]);
           ws.onopen = () => {
             ws.send(JSON.stringify({ type: 'session.update', session: {
               voice: 'Eve',
@@ -60,6 +60,10 @@ export default function Home() {
           };
           ws.onmessage = (e) => {
             const msg = JSON.parse(e.data);
+            if (msg.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong', ping_timestamp: msg.ping_timestamp }));
+              return;
+            }
             if (msg.type === 'response.output_audio.delta' && msg.delta) playChunk(msg.delta);
             if (msg.type === 'error') STATUS.textContent = 'Error: ' + (msg.message || JSON.stringify(msg));
           };
@@ -77,8 +81,8 @@ export default function Home() {
             const input = e.inputBuffer.getChannelData(0);
             const pcm = new Int16Array(input.length);
             for (let i = 0; i < input.length; i++) {
-              const s = Math.max(-1, Math.min(1, input ));
-              pcm = s < 0 ? s * 0x8000 : s * 0x7FFF;
+              const s = Math.max(-1, Math.min(1, input[i]));
+              pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
             }
             ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: toBase64(new Uint8Array(pcm.buffer)) }));
           };
@@ -90,11 +94,11 @@ export default function Home() {
           if (!audioCtx) return;
           const bin = atob(b64);
           const bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) bytes = bin.charCodeAt(i);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
           const pcm = new Int16Array(bytes.buffer);
           const buf = audioCtx.createBuffer(1, pcm.length, 24000);
           const ch = buf.getChannelData(0);
-          for (let i = 0; i < pcm.length; i++) ch = pcm / 32768;
+          for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 32768;
           const src = audioCtx.createBufferSource();
           src.buffer = buf;
           src.connect(audioCtx.destination);
