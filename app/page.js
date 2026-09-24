@@ -37,7 +37,7 @@ export default function Home() {
           if (data.error) { STATUS.textContent = data.error; return; }
           const token = data.client_secret && data.client_secret.value;
           if (!token) { STATUS.textContent = 'No token'; return; }
-          ws = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', );
+          ws = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', ['xai-client-secret.' + token]);
           ws.onopen = () => {
             ws.send(JSON.stringify({ type: 'session.update', session: {
               voice: 'Eve',
