@@ -60,7 +60,7 @@ export default function Home() {
 
           ws.onopen = () => {
             ws.send(JSON.stringify({ type: 'session.update', session: {
-              voice: 'carina',
+              voice: 'ara',
               instructions: 'You are a helpful voice assistant. Keep responses short and conversational.',
               turn_detection: { type: 'server_vad' },
               audio: {
