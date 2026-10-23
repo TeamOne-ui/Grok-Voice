@@ -38,7 +38,7 @@ async function start() {
     ws.send(JSON.stringify({
       type: 'session.update',
       session: {
-        voice: 'Eve',
+        voice: 'Ara',
         instructions: 'You are a helpful voice assistant. Keep responses short and conversational.',
         turn_detection: { type: 'server_vad' },
         audio: {
