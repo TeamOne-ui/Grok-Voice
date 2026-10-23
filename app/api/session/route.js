@@ -23,7 +23,7 @@ export async function POST() {
   const data = await r.json();
   return NextResponse.json({
     client_secret: { value: data.value, expires_at: data.expires_at },
-    voice: "Eve",
+    voice: "Ara",
     instructions: "You are a helpful voice assistant. Keep responses short and conversational.",
   });
 }
