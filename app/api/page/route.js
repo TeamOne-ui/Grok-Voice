@@ -6,7 +6,7 @@ export async function GET() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Grok Voice</title>
+<title>Ara</title>
 <style>
   body { margin:0; background:#0a0a0a; color:#fff; font-family:-apple-system,sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
   #orb { width:120px; height:120px; border-radius:50%; background:radial-gradient(circle,#4a9eff,#1a3a6e); box-shadow:0 0 40px #4a9eff; transition:transform .2s; }
